@@ -80,3 +80,7 @@ env/
 # Ignore your local benchmark data if it gets too large
 benchmarks/data/*
 !benchmarks/data/.gitkeep
+
+# Ignore all the sequences
+*.seq
+*.fasta

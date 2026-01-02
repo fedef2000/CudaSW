@@ -2,6 +2,7 @@
 #include <vector>
 #include <iostream>
 #include <algorithm> 
+#include <ifstream>
 
 const int match = 2;
 const int mismatch = -1;
@@ -54,10 +55,8 @@ int cpu_sw(std::string s1, std::string s2) {
             }
         }
     }
-    //std::cout << "Max Score: " << max_score << std::endl;
+    std::cout << "Max Score: " << max_score << std::endl;
 
-    return max_score;
-    
     // 2. TRACEBACK STEP
     std::string align1 = "";
     std::string align2 = "";
@@ -105,12 +104,24 @@ int cpu_sw(std::string s1, std::string s2) {
     std::cout << "Alignment:" << std::endl;
     std::cout << align1 << std::endl;
     std::cout << align2 << std::endl;
+
+    return max_score;
 }
 
 int main() {
-    std::string seq1 = "TGTTACGG";
-    std::string seq2 = "GGTTGACTA";
-    
-    cpu_sw(seq1, seq2);
+    std::ifstream inFileA("a.seq");
+    std::ifstream inFileB("b.seq");
+    if (!inFileA || !inFileB) {
+        std::cerr << "Errore: Impossibile aprire uno dei file di input!" << std::endl;
+        return 1;
+    }
+
+    std::string seq1, seq2;
+
+    if (std::getline(inFileA, seq1) && std::getline(inFileB, seq2)) {
+        cpu_sw(seq1, seq2);
+    } else {
+        std::cerr << "Errore: File vuoti o formattazione non valida." << std::endl;
+    }
     return 0;
 }
