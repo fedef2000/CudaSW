@@ -84,3 +84,6 @@ benchmarks/data/*
 # Ignore all the sequences
 *.seq
 *.fasta
+
+# logs
+*.log
