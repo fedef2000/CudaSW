@@ -48,9 +48,9 @@ __global__ void compute_diagonal(int* d_cur, int* d_prev, int* d_prev2,
 
     // 2. Calculation of previous buffer indices
     // Start row of the previous diagonal (k-1)
-    int min_r_prev = (k + 1 < n) ? 1 : (k + 1) - n + 2; 
+    int min_r_prev = (k + 1 < n) ? 1 : (k + 1) - n; 
     // Start row of the diagonal before that (k-2)
-    int min_r_prev2 = (k < n) ? 1 : k - n + 2;
+    int min_r_prev2 = (k < n) ? 1 : k - n;
 
     int idx_up   = (r - 1) - min_r_prev; 
     int idx_left = r - min_r_prev;       
