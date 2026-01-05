@@ -3,10 +3,10 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=gpu_group5@hpc-legionlogin.polito.it
 #SBATCH --partition=gpu_a100
-#SBATCH --time=00:05:00
+#SBATCH --time=00:15:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --output=out.log
+#SBATCH --output=out-basic.log
 #SBATCH --mem-per-cpu=1G
 #SBATCH --gres=gpu:1
 
