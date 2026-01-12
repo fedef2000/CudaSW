@@ -84,11 +84,6 @@ __global__ void compute_tiled_sw(
         s_mat[0][tid] = 0; 
     }
 
-    // Init Shared Memory with zeros
-    // Il thread ID va da 0 a 31.
-    s_mat[tid][0] = 0; 
-    s_mat[0][tid] = 0;
-
     // Load Top Halo
     if (t_r > 0 && tid < TILE_SIZE) {
         // FIXED: Used (t_r - 1) directly, removed unused r_prev variable
@@ -187,8 +182,8 @@ int main() {
 
     std::string seq1, seq2;
     if (std::getline(inFileA, seq1) && std::getline(inFileB, seq2)) {
-        int m = seq1.size();
-        int n = seq2.size();
+        int m = seq1.size(); //rows
+        int n = seq2.size(); //cols
         
         // Pad dimensions to multiple of TILE_SIZE to simplify logic? 
         // The kernel handles boundaries, but allocation should be safe.
@@ -222,6 +217,7 @@ int main() {
 
         std::cout << "Starting TILED computation..." << std::endl;
         std::cout << "Matrix: " << m << " x " << n << std::endl;
+        std::cout << "Tile size: " << TILE_SIZE << " x " << TILE_SIZE << std::endl;
         std::cout << "Tile Grid: " << num_tile_rows << " x " << num_tile_cols << std::endl;
 
         auto start = std::chrono::high_resolution_clock::now();
@@ -229,9 +225,9 @@ int main() {
         int total_tile_diagonals = num_tile_rows + num_tile_cols - 1;
 
         for (int k = 0; k < total_tile_diagonals; k++) {
-            int t_r_min = std::max(0, k - num_tile_cols + 1);
-            int t_r_max = std::min(num_tile_rows - 1, k);
-            int num_blocks = t_r_max - t_r_min + 1;
+            int t_r_min = std::max(0, k - num_tile_cols + 1); //row where diagonal starts
+            int t_r_max = std::min(num_tile_rows - 1, k); //row where diagonal ends
+            int num_blocks = t_r_max - t_r_min + 1; //number of tiles in the diagonal
 
             if (num_blocks > 0) {
                 // Launch one block per tile, exactly 32 threads per block
