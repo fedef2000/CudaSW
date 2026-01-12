@@ -87,3 +87,9 @@ benchmarks/data/*
 
 # logs
 *.log
+
+# profiling
+*.nsys-rep
+*.sqlite
+gpu_profile
+*.txt

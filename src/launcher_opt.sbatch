@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=CudaSw
+#SBATCH --job-name=CudaSw-optimized
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=gpu_group5@hpc-legionlogin.polito.it
 #SBATCH --partition=gpu_a100
-#SBATCH --time=00:05:00
+#SBATCH --time=00:15:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --output=out-opt.log
@@ -28,6 +28,6 @@ nvidia-smi
 
 echo "Compiling!"
 
-nvcc opt_gpu_version.cu -o opt.exe -O3 -arch=sm_80
+nvcc gpu_opt_version.cu -o opt.exe -O3 -arch=sm_80
 
 ./opt.exe

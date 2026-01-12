@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=CudaSw
+#SBATCH --job-name=CudaSw-basic
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=gpu_group5@hpc-legionlogin.polito.it
 #SBATCH --partition=gpu_a100
@@ -28,7 +28,7 @@ nvidia-smi
 
 echo "Compiling!"
 
-nvcc ./GPU_version.cu -o ./gpu.exe
+nvcc ./gpu_basic_version.cu -o ./gpu_basic.exe
 
-./gpu.exe
+./gpu_basic.exe
 

@@ -7,18 +7,17 @@
 #SBATCH --cpus-per-task=4            # 4 CPU per gestire I/O e driver sono sufficienti
 #SBATCH --time=00:10:00
 #SBATCH --mem=8G
-#SBATCH --output=profile_align.log
+#SBATCH --output=profile.log
 
 # --- CONFIGURAZIONE ---
 PROFILE_TOOL="nsys" # "nsys" per timeline globale, "ncu" per analisi kernel profonda
-APP_SRC="GPU_version.cu"
-APP_EXE="gpu_align"
+APP_SRC="opt_gpu_version.cu"
+APP_EXE="gpu_profile"
 
 # --- CARICAMENTO MODULI ---
 module purge
 module load gcc/12.4.0
 module load nvhpc/25.1
-# OpenMPI rimosso perché il tuo codice non usa librerie MPI
 
 # Setup CUDA HOME (come nel tuo script originale)
 if [ -z "${CUDA_HOME:-}" ]; then
@@ -46,7 +45,7 @@ fi
 # --- 2. COMPILAZIONE ---
 echo "Compilazione di $APP_SRC..."
 # -O3 per ottimizzazione host, -arch=sm_70 per V100
-nvcc -O3 -arch=sm_70 "$APP_SRC" -o "$APP_EXE"
+nvcc -O3 -arch=sm_80 "$APP_SRC" -o "$APP_EXE"
 
 if [ ! -f "$APP_EXE" ]; then
     echo "Errore: Compilazione fallita."
