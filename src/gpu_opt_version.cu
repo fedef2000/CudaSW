@@ -84,6 +84,11 @@ __global__ void compute_tiled_sw(
         s_mat[0][tid] = 0; 
     }
 
+    // Init Shared Memory with zeros
+    // Il thread ID va da 0 a 31.
+    s_mat[tid][0] = 0; 
+    s_mat[0][tid] = 0;
+
     // Load Top Halo
     if (t_r > 0 && tid < TILE_SIZE) {
         // FIXED: Used (t_r - 1) directly, removed unused r_prev variable
