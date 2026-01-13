@@ -48,71 +48,73 @@ __global__ void compute_tiled_sw(
     int num_tile_cols,
     int* d_max_score) 
 {
-    // Shared Memory Score matrix is 33x33 to hold the tile + halo
-    __shared__ score_t s_mat[TILE_SIZE + 1][TILE_SIZE + 1];
+    // FIX 1: Use 'volatile' to disable register promotion on Maxwell
+    __shared__ volatile score_t s_mat[TILE_SIZE + 1][TILE_SIZE + 1];
+    
     __shared__ char s_seqA[TILE_SIZE];
     __shared__ char s_seqB[TILE_SIZE];
 
     int tid = threadIdx.x; 
 
-    // --- 1. Identify Tile Coordinates ---
-    int t_r_min = max(0, tile_diag_idx - num_tile_cols + 1); //index where tile starts
-    int t_r = t_r_min + blockIdx.x; //actual row index, it depends on blockId because each diagonal have several rows
+    // --- Identify Tile ---
+    int t_r_min = max(0, tile_diag_idx - num_tile_cols + 1);
+    int t_r = t_r_min + blockIdx.x;
     int t_c = tile_diag_idx - t_r;
 
-    // Global pixel coordinates (inside the global MxN matrix), used to access the right index in the two sequences
     int global_r_start = t_r * TILE_SIZE;
     int global_c_start = t_c * TILE_SIZE;
 
-    bool tile_valid = (global_r_start < m) && (global_c_start < n);
-    if (!tile_valid) return;
+    // Boundary check
+    if (global_r_start >= m || global_c_start >= n) return;
 
-    // --- 2. Load Sequence Chunk inside shared memory ---
+    // --- Load Sequence Chunks ---
     if (tid < TILE_SIZE) {
         int r_idx = global_r_start + tid;
         s_seqA[tid] = (r_idx < m) ? seqA[r_idx] : 0;
 
         int c_idx = global_c_start + tid;
         s_seqB[tid] = (c_idx < n) ? seqB[c_idx] : 0;
+        
+        // Init Boundaries in Shared Mem
+        s_mat[tid + 1][0] = 0; 
+        s_mat[0][tid + 1] = 0;
     }
+    // Init corner
+    if (tid == 0) s_mat[0][0] = 0;
 
-    // --- 3. Load Halos ---
-    // Init Shared Memory with zeros
-    if (tid <= TILE_SIZE) {
-        s_mat[tid][0] = 0; 
-        s_mat[0][tid] = 0; 
-    }
+    // FIX 2: Stronger Barrier before Halo Load
+    __syncthreads();
 
-    // Load Top Halo
-    if (t_r > 0 && tid < TILE_SIZE) { //t_r > 0 checks that tile is not on top of the matrix (where there'are not top values)
-        int idx = (t_r - 1) * n + (global_c_start + tid);
-        if (global_c_start + tid < n)
+    // --- Load Halos ---
+    // Load Top Halo (from Tile Above)
+    if (t_r > 0 && tid < TILE_SIZE) {
+        if (global_c_start + tid < n) { // Check global bounds
+            int idx = (t_r - 1) * n + (global_c_start + tid);
             s_mat[0][tid + 1] = d_bottom_edges[idx];
-    }
-
-    // Load Left Halo
-    if (t_c > 0 && tid < TILE_SIZE) {
-        int idx = (t_c - 1) * m + (global_r_start + tid);
-        if (global_r_start + tid < m)
-            s_mat[tid + 1][0] = d_right_edges[idx];
-    }
-
-    // Load top-left corner
-    if (tid == 0) { 
-        if (t_r > 0 && t_c > 0) { //cell (0,0) doesn't have a top-left corner
-            int idx = (t_r - 1) * n + (global_c_start - 1);
-             s_mat[0][0] = d_bottom_edges[idx];
-        } else {
-             s_mat[0][0] = 0;
         }
     }
 
-    __syncwarp(); 
+    // Load Left Halo (from Tile Left)
+    if (t_c > 0 && tid < TILE_SIZE) {
+        if (global_r_start + tid < m) { // Check global bounds
+            int idx = (t_c - 1) * m + (global_r_start + tid);
+            s_mat[tid + 1][0] = d_right_edges[idx];
+        }
+    }
 
-    // --- 4. Intra-Tile Wavefront Compute ---
+    // Load Corner (Diagonal)
+    if (tid == 0 && t_r > 0 && t_c > 0) {
+        int idx = (t_r - 1) * n + (global_c_start - 1);
+        s_mat[0][0] = d_bottom_edges[idx];
+    }
+
+    // FIX 3: Strict Barrier after Loading Halos
+    __syncthreads();
+
+    // --- Intra-Tile Compute ---
     score_t local_max = 0;
-    for (int k = 0; k < (TILE_SIZE * 2 - 1); k++) { // number of diagonals is TILE_SIZE+TILE_SIZE-1
-    
+
+    for (int k = 0; k < (TILE_SIZE * 2 - 1); k++) {
         int min_r = (k < TILE_SIZE) ? 1 : (k - TILE_SIZE + 2);
         int max_r = (k < TILE_SIZE) ? (k + 1) : TILE_SIZE;
         
@@ -121,6 +123,7 @@ __global__ void compute_tiled_sw(
         if (current_r <= max_r) {
             int current_c = (k + 2) - current_r;
             
+            // Boundary checks for computation
             if ((global_r_start + current_r - 1 < m) && (global_c_start + current_c - 1 < n)) {
                 
                 score_t val_up   = s_mat[current_r - 1][current_c];
@@ -138,13 +141,16 @@ __global__ void compute_tiled_sw(
                 s_mat[current_r][current_c] = (score_t)score;
                 if (score > local_max) local_max = (score_t)score;
             } else {
+                // Ensure padding area is zeroed out for neighbors
                 s_mat[current_r][current_c] = 0;
             }
         }
-        __syncwarp(); 
+        
+        // FIX 4: Strong Barrier INSIDE the loop
+        __syncthreads(); 
     }
 
-    // --- 5. Write Edges to Global Memory ---
+    // --- Write Edges ---
     if (tid < TILE_SIZE) {
         int r_out = global_r_start + tid; 
         int c_out = global_c_start + tid; 
@@ -158,10 +164,12 @@ __global__ void compute_tiled_sw(
         }
     }
     
-    // --- 6. Update Max Score ---
+    // --- Update Global Max ---
+    // Use shfl_down_sync with full mask. On Maxwell this maps to shfl_down.
     for (int offset = 16; offset > 0; offset /= 2) {
         local_max = max(local_max, __shfl_down_sync(0xffffffff, local_max, offset));
     }
+    
     if (tid == 0 && local_max > 0) {
         atomicMax(d_max_score, (int)local_max);
     }

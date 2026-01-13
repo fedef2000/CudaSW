@@ -2,8 +2,8 @@
 #SBATCH --job-name=CudaSw-optimized
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=gpu_group5@hpc-legionlogin.polito.it
-#SBATCH --partition=gpu_v100
-#SBATCH --time=00:15:00
+#SBATCH --partition=gpu_a100
+#SBATCH --time=00:05:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --output=out-opt.log
