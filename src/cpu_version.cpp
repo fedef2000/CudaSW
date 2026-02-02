@@ -5,6 +5,7 @@
 #include <fstream>
 #include <chrono>  
 #include <iomanip>
+#include <sys/resource.h>
 
 const int match = 2;
 const int mismatch = -1;
@@ -62,7 +63,10 @@ void cpu_sw_benchmark(const std::string& s1, const std::string& s2) {
     double seconds = elapsed.count();
     double gcups = (total_cells / 1e9) / seconds;
 
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
     std::cout << "------------------------------------------------" << std::endl;
+    std::cout << "Peak Memory: " << usage.ru_maxrss << " KB" << std::endl;
     std::cout << "Max Score: " << max_score << std::endl;
     std::cout << "Time Elapsed: " << std::fixed << std::setprecision(4) << seconds << " s" << std::endl;
     std::cout << "Performance: "  << std::fixed << std::setprecision(4) << gcups << " GCUPS" << std::endl;
