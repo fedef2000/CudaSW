@@ -49,10 +49,10 @@ int main() {
         bool ran_cpu = false;
 
         // Skip CPU if either sequence is longer than 500,000
-        if (len1 <= 500000 && len2 <= 500000) {
+        if (len1 <= 5000000 && len2 <= 5000000) {
             auto start = std::chrono::high_resolution_clock::now();
             
-            score_cpu = sw_cpu(seq1.c_str(), len1, seq2.c_str(), len2, config);
+            score_cpu = sw_cpu(seq1, seq2, config);
             
             auto end = std::chrono::high_resolution_clock::now();
             double elapsed = std::chrono::duration<double>(end - start).count();
@@ -68,7 +68,7 @@ int main() {
         {
             auto start = std::chrono::high_resolution_clock::now();
             
-            int score_basic = sw_cuda_diagonal(seq1.c_str(), len1, seq2.c_str(), len2, config);
+            int score_basic = sw_cuda_diagonal(seq1, seq2, config);
             
             auto end = std::chrono::high_resolution_clock::now();
             double elapsed = std::chrono::duration<double>(end - start).count();
@@ -86,7 +86,7 @@ int main() {
             auto start = std::chrono::high_resolution_clock::now();
             
             // Assuming sw_cuda_run is the tiled version in your library
-            int score_tiled = sw_cuda_tiled(seq1.c_str(), len1, seq2.c_str(), len2, config);
+            int score_tiled = sw_cuda_tiled(seq1, seq2, config);
             
             auto end = std::chrono::high_resolution_clock::now();
             double elapsed = std::chrono::duration<double>(end - start).count();
@@ -98,7 +98,6 @@ int main() {
                 std::cerr << "WARNING: Tiled GPU score mismatch! (GPU: " << score_tiled << ", CPU: " << score_cpu << ")" << std::endl;
             }
         }
-
     } else {
         std::cerr << "Error: Empty files." << std::endl;
     }

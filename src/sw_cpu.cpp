@@ -4,10 +4,10 @@
 #include <iostream>
 
 // Pure CPU implementation adapted for the library
-int sw_cpu(const char* seq1, int len1, 
-               const char* seq2, int len2, 
-               SWConfig config) {
-    
+int sw_cpu(const std::string& seq1, const std::string& seq2,
+                SWConfig config)  {
+    int len1 = seq1.length();
+    int len2 = seq2.length();
     // Use vectors for memory management (RAII)
     // Only 2 rows are needed: O(min(N,M)) space complexity
     std::vector<int> prev_row(len2 + 1, 0);

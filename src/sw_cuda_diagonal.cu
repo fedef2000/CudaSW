@@ -6,20 +6,8 @@
 
 #define BLOCK_SIZE 256
 
-typedef int score_t; 
-
-// Internal helper for error checking
-#define cudaCheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
-   if (code != cudaSuccess) {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
-}
-
 /**
  * KERNEL: Diagonal Wavefront (Basic Version)
- * Updated to accept match/mismatch/gap as arguments
  */
 __global__ void compute_diagonal_kernel(score_t* d_cur, score_t* d_prev, score_t* d_prev2, 
                                        const char* __restrict__ seq1, const char* __restrict__ seq2, 
@@ -117,16 +105,17 @@ __global__ void compute_diagonal_kernel(score_t* d_cur, score_t* d_prev, score_t
 }
 
 // --- LIBRARY HOST FUNCTION ---
-int sw_cuda_diagonal(const char* seq1, int len1, 
-                         const char* seq2, int len2, 
-                         SWConfig config) {
+int sw_cuda_diagonal(const std::string& seq1, const std::string& seq2,
+                SWConfig config) {
 
+    int len1 = seq1.length();
+    int len2 = seq2.length();
     // 1. Allocation
     char *d_seq1, *d_seq2;
     cudaCheck(cudaMalloc((void **)&d_seq1, len1 * sizeof(char)));
     cudaCheck(cudaMalloc((void **)&d_seq2, len2 * sizeof(char)));
-    cudaCheck(cudaMemcpy(d_seq1, seq1, len1, cudaMemcpyHostToDevice));
-    cudaCheck(cudaMemcpy(d_seq2, seq2, len2, cudaMemcpyHostToDevice));
+    cudaCheck(cudaMemcpy(d_seq1, seq1.c_str(), len1, cudaMemcpyHostToDevice));
+    cudaCheck(cudaMemcpy(d_seq2, seq2.c_str(), len2, cudaMemcpyHostToDevice));
 
     // Diagonal buffers: In this approach, we swap 3 full diagonal arrays
     score_t *d_current, *d_prev, *d_prev2;
