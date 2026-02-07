@@ -40,7 +40,7 @@ pip install pybind11 cmake scikit-build ninja
 
 # --- 6. BUILD ---
 echo "Building sw_cuda_py..."
-cd sw_cuda_py
+
 pip install . -v
 
 if [ $? -eq 0 ]; then

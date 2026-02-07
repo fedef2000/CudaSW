@@ -3,7 +3,7 @@ import sys
 import subprocess
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
-import pybind11  # <--- NEW: Import this to find the path
+import pybind11
 
 class CMakeExtension(Extension):
     def __init__(self, name, sourcedir=''):
@@ -39,7 +39,7 @@ class CMakeBuild(build_ext):
 setup(
     name='sw_cuda_py',
     version='0.1.0',
-    author='Your Name',
+    author='Federico Ferrari',
     description='CUDA accelerated Smith-Waterman alignment',
     long_description='',
     ext_modules=[CMakeExtension('sw_cuda_py')],

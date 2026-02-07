@@ -5,7 +5,8 @@
 #include <fstream>
 #include <chrono>   
 #include <iomanip>
-#include "sw_cuda.h" 
+
+#include "../sw_cuda_py/src/sw_cuda.h"
 
 // Helper to print stats cleanly
 void print_stats(const std::string& label, int score, double seconds, long long total_cells) {
