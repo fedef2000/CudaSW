@@ -92,4 +92,3 @@ benchmarks/data/*
 *.nsys-rep
 *.sqlite
 gpu_profile
-*.txt
