@@ -5,7 +5,7 @@ project(sw_cuda_py LANGUAGES CXX CUDA)
 # CRITICAL FIX: Explicitly find the CUDA Toolkit libraries
 find_package(CUDAToolkit REQUIRED)
 
-find_package(Python 3.8 COMPONENTS Interpreter Development REQUIRED)
+find_package(Python 3.6 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 
 # --- 2. Define Source Files ---
