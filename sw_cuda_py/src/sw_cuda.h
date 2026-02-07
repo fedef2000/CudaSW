@@ -58,11 +58,14 @@ std::vector<int> sw_cuda_o2m(const std::string& query,
 
 
 // Kernel declaration to be used in streams
+#ifdef __CUDACC__
 __global__ void compute_tile_kernel(const char* __restrict__ seq1, const char* __restrict__ seq2,
                                     score_t* d_horiz, score_t* d_vert, score_t* d_diag,
                                     int m, int n, int tile_step, int min_bx,
                                     int match, int mismatch, int gap,
                                     int* d_max_score);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

@@ -93,6 +93,3 @@ benchmarks/data/*
 *.sqlite
 gpu_profile
 *.txt
-
-# sbatch scripts
-*.sbatch
