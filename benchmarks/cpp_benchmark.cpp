@@ -16,7 +16,7 @@ namespace fs = std::filesystem;
 // --- Configuration ---
 const std::string DATA_DIR = "./data";
 const int MATCH_SCORE = 2;
-const int MISMATCH_SCORE = -1;
+const int MISMATCH_SCORE = -2;
 const int GAP_SCORE = -1;
 
 struct Sequence {
@@ -36,14 +36,42 @@ std::vector<Sequence> load_sequences(const std::string& folder_name) {
     }
 
     for (const auto& entry : fs::directory_iterator(full_path)) {
-        if (entry.path().extension() == ".seq") {
+        std::string ext = entry.path().extension().string();
+        // Check for common FASTA extensions
+        if (ext == ".fasta" || ext == ".fa" || ext == ".seq") {
             std::ifstream file(entry.path());
-            std::string content, line;
-            // Robust reading: concatenate lines in case of multiline fasta-style (simple)
-            while(file >> line) content += line;
-            
-            if (!content.empty()) {
-                seqs.push_back({entry.path().filename().string(), content});
+            std::string line;
+            std::string current_header;
+            std::string current_seq;
+
+            while (std::getline(file, line)) {
+                // Skip empty lines
+                if (line.empty()) continue;
+                // Remove carriage return if present (Windows format compatibility)
+                if (line.back() == '\r') line.pop_back();
+
+                if (line[0] == '>') {
+                    // If we have accumulating data for a previous sequence, save it now
+                    if (!current_header.empty()) {
+                        seqs.push_back({current_header, current_seq});
+                    }
+                    
+                    // Start new sequence
+                    current_header = line.substr(1); // Remove '>'
+                    current_seq.clear();
+                } else {
+                    // It's sequence data
+                    current_seq += line;
+                }
+            }
+
+            // Save the last sequence in the file
+            if (!current_header.empty()) {
+                seqs.push_back({current_header, current_seq});
+            } 
+            // Fallback: If file has content but no '>' headers (raw sequence file)
+            else if (!current_seq.empty()) {
+                seqs.push_back({entry.path().filename().string(), current_seq});
             }
         }
     }
@@ -138,9 +166,11 @@ int main() {
     std::cout << "\n--- Testing: CUDA Batch (O2M) ---" << std::endl;
     
     // Prepare data for batch interface
+    // Note: This takes the first query and runs it against all targets
     std::string q_seq = queries[0].content;
     std::vector<std::string> target_list;
     unsigned long long batch_cells = 0;
+    
     for(const auto& t : targets) {
         target_list.push_back(t.content);
         batch_cells += (unsigned long long)q_seq.length() * t.content.length();

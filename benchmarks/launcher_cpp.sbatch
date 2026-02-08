@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu_a40
 #SBATCH --time=00:05:00
 #SBATCH --gres=gpu:1
-#SBATCH --output=../out-cpp-run.log
+#SBATCH --output=./out-cpp-run.log
 
 # Load necessary modules
 module load gcc/12.4.0
