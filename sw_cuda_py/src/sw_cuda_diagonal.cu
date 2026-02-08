@@ -46,8 +46,8 @@ __global__ void compute_diagonal_kernel(score_t* d_cur, score_t* d_prev, score_t
     // --- Compute Score ---
     if (active) {
         // Mapping linear diagonal index back to 2D coordinates for previous diagonals
-        int min_r_prev = (k + 1 < n) ? 1 : (k + 1) - n; 
-        int min_r_prev2 = (k < n) ? 1 : k - n;
+        int min_r_prev = (k + 1 <= n) ? 1 : (k + 1) - n; 
+        int min_r_prev2 = (k <= n) ? 1 : k - n;
 
         int idx_up   = (r - 1) - min_r_prev; 
         int idx_left = r - min_r_prev;       
