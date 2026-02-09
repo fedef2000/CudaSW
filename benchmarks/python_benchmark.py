@@ -3,8 +3,16 @@ import glob
 import time
 import sw_cuda_py
 
+# --- Check for Biopython ---
+try:
+    from Bio import Align
+    HAS_BIOPYTHON = True
+except ImportError:
+    HAS_BIOPYTHON = False
+    print("Warning: Biopython not found. Skipping Biopython benchmark.")
+
 # --- Configuration ---
-DATA_DIR = "./data"  # Assumes script is in 'benchmarks/' and data is in 'root/data'
+DATA_DIR = "./data"
 MATCH = 3
 MISMATCH = -3
 GAP = -1
@@ -48,23 +56,17 @@ def load_sequences(folder_name):
 
             if line.startswith(">"):
                 has_fasta_header = True
-                # If we were building a sequence, save it
                 if current_header:
                     file_seqs.append((current_header, "".join(current_seq)))
-                
-                # Start new sequence
-                current_header = line[1:] # Remove '>'
+                current_header = line[1:]
                 current_seq = []
             else:
                 current_seq.append(line)
 
-        # Save the last sequence found in the file
         if current_header and current_seq:
             file_seqs.append((current_header, "".join(current_seq)))
         
-        # Fallback: If file had content but no '>' headers, treat as raw sequence
         if not has_fasta_header and current_seq:
-            # Use filename as the sequence name
             name = os.path.basename(f_path)
             file_seqs.append((name, "".join(current_seq)))
             
@@ -77,22 +79,35 @@ def calculate_gcups(total_cells, elapsed_seconds):
     if elapsed_seconds <= 0: return 0.0
     return (total_cells / 1e9) / elapsed_seconds
 
+# --- Biopython Wrapper ---
+def biopython_sw(q, t, config):
+    """
+    Wrapper to run Biopython's PairwiseAligner with the given config.
+    """
+    aligner = Align.PairwiseAligner()
+    aligner.mode = 'local'  # Smith-Waterman is local alignment
+    
+    # Map our config to Biopython's scoring
+    aligner.match_score = config.match_score
+    aligner.mismatch_score = config.mismatch_score
+    
+    # For linear gap penalty (simple gap score), open and extend are the same
+    aligner.open_gap_score = config.gap_score
+    aligner.extend_gap_score = config.gap_score
+    
+    # Calculate score
+    return int(aligner.score(q, t))
+
 def run_test(label, func, queries, targets, config, check_ref=None):
-    """
-    Runs a benchmark for a specific function.
-    Prints GCUPS for each individual function call.
-    check_ref: If provided (dict), validates the score against this reference.
-    """
     print(f"\n--- Testing: {label} ---")
     
     if not queries or not targets:
         print("  [Skipping] Missing queries or targets.")
         return {}
 
-    # 1. Warmup (crucial for GPU to initialize context)
+    # Warmup
     if "cuda" in label.lower():
         try:
-            # Run a dummy call to wake up the GPU
             func(queries[0][1], targets[0][1], config)
         except Exception as e:
             print(f"  [Warmup Failed] {e}")
@@ -100,37 +115,28 @@ def run_test(label, func, queries, targets, config, check_ref=None):
     start_total = time.perf_counter()
     
     total_cells = 0
-    results = {} # Store results for validation
+    results = {} 
     
-    # Loop over every combination of Query vs Target
     for q_name, q_seq in queries:
         for t_name, t_seq in targets:
             
-            # --- Per-Call Timing Start ---
             t_start = time.perf_counter()
-            
-            # Call the C++ function
             score = func(q_seq, t_seq, config)
-            
-            # --- Per-Call Timing End ---
             t_end = time.perf_counter()
             
-            # Metrics for this specific call
             duration = t_end - t_start
             cells = len(q_seq) * len(t_seq)
             gcups = calculate_gcups(cells, duration)
             
-            # Print immediate result
-            print(f"  [{q_name} vs {t_name}] Cells: {cells/1000000}M, Score: {score}, Time: {duration:.5f}s, Perf: {gcups:.4f} GCUPS")
+            print(f"  [{q_name} vs {t_name}] Score: {score}, Time: {duration:.5f}s, Perf: {gcups:.4f} GCUPS")
 
-            # Accumulate totals
             total_cells += cells
             results[(q_name, t_name)] = score
 
-            # Optional Validation
             if check_ref:
                 ref_score = check_ref.get((q_name, t_name))
-                if ref_score is not None and score != ref_score:
+                # Note: Biopython might return float scores, cast to int for comparison if needed
+                if ref_score is not None and int(score) != int(ref_score):
                     print(f"    >>> [ERROR] Mismatch! Expected {ref_score}, Got {score}")
 
     end_total = time.perf_counter()
@@ -145,55 +151,80 @@ def run_test(label, func, queries, targets, config, check_ref=None):
     return results
 
 def main():
-    # 1. Setup
     config = sw_cuda_py.SWConfig(MATCH, MISMATCH, GAP)
     print(f"Configuration: Match={MATCH}, Mismatch={MISMATCH}, Gap={GAP}")
     
-    # 2. Load Data
     queries = load_sequences("query")
     targets = load_sequences("target")
     
     if not queries or not targets:
-        print("Error: Missing data. Please ensure 'data/query' and 'data/target' exist and contain .seq or .fasta files.")
+        print("Error: Missing data.")
         return
 
-    # 3. Baseline: CPU
-    # Note: sw_cpu is slow, so if datasets are huge, you might want to limit this
-    cpu_results = run_test("CPU Baseline", sw_cuda_py.sw_cpu, queries, targets, config)
+    # 1. Baseline: Custom C++ CPU
+    cpu_results = run_test("CPU Baseline (C++)", sw_cuda_py.sw_cpu, queries, targets, config)
     
-    # 4. GPU: Diagonal Wavefront
+    # 2. Baseline: Biopython (if available)
+    if HAS_BIOPYTHON:
+        run_test("Biopython (CPU)", biopython_sw, queries, targets, config, check_ref=cpu_results)
+
+    # 3. GPU: Diagonal
     run_test("CUDA Diagonal", sw_cuda_py.sw_cuda_diagonal, queries, targets, config, check_ref=cpu_results)
     
-    # 5. GPU: Tiled
+    # 4. GPU: Tiled
     run_test("CUDA Tiled", sw_cuda_py.sw_cuda_tiled, queries, targets, config, check_ref=cpu_results)
 
-    # 6. GPU: One-to-Many (Batch)
+    # 5. GPU: Batch (Streams)
     print(f"\n--- Testing: CUDA Batch (O2M) ---")
-    
     if len(queries) > 0 and len(targets) > 0:
-        q_name, q_seq = queries[0] # Take first query
-        t_list = [t[1] for t in targets] # List of all targets
         
-        # Calculate expected cells for GCUPS
-        batch_cells = len(q_seq) * sum(len(t) for t in t_list)
-
-        # Warmup
+        # Prepare target list (shared across all queries)
+        t_list = [t[1] for t in targets]
+        
+        # Warmup with the first query
         try:
-            sw_cuda_py.sw_cuda_o2m(q_seq, t_list, config)
-        except:
-            pass
+            sw_cuda_py.sw_cuda_o2m(queries[0][1], t_list, config)
+        except Exception as e:
+            print(f"  [Warmup Failed] {e}")
 
-        # Single Batch Call
-        start = time.perf_counter()
-        scores = sw_cuda_py.sw_cuda_o2m(q_seq, t_list, config)
-        end = time.perf_counter()
-        
-        duration = end - start
-        gcups = calculate_gcups(batch_cells, duration)
-        
-        print(f"  [Batch: {q_name} vs {len(t_list)} targets] Time: {duration:.5f}s, Perf: {gcups:.4f} GCUPS")
-    else:
-        print("  [Skipping] Not enough data for batch test.")
+        total_batch_time = 0.0
+        total_batch_cells = 0
+
+        # Iterate over ALL queries
+        for q_name, q_seq in queries:
+            
+            # Calculate total matrix cells for this specific 1-to-many batch
+            current_batch_cells = len(q_seq) * sum(len(t) for t in t_list)
+
+            start = time.perf_counter()
+            # Run the O2M kernel for the current query against all targets
+            batch_scores = sw_cuda_py.sw_cuda_o2m(q_seq, t_list, config)
+            end = time.perf_counter()
+            
+            duration = end - start
+            gcups = calculate_gcups(current_batch_cells, duration)
+            
+            print(f"  [Batch: {q_name} vs {len(t_list)} targets] Time: {duration:.5f}s, Perf: {gcups:.4f} GCUPS")
+            
+            total_batch_time += duration
+            total_batch_cells += current_batch_cells
+
+            # Optional: Check accuracy if we have CPU reference results
+            if cpu_results and batch_scores:
+                for idx, t_tuple in enumerate(targets):
+                    t_name = t_tuple[0]
+                    ref_score = cpu_results.get((q_name, t_name))
+                    
+                    # Assuming sw_cuda_o2m returns a list of scores corresponding to t_list order
+                    if ref_score is not None and idx < len(batch_scores):
+                        if int(batch_scores[idx]) != int(ref_score):
+                             print(f"    >>> [ERROR] Mismatch! {q_name} vs {t_name}. Expected {ref_score}, Got {batch_scores[idx]}")
+
+        # Summary for the batch phase
+        avg_gcups = calculate_gcups(total_batch_cells, total_batch_time)
+        print(f"  --- CUDA Batch (O2M) Summary ---")
+        print(f"  Total Time: {total_batch_time:.4f}s")
+        print(f"  Average Performance: {avg_gcups:.4f} GCUPS")
 
 if __name__ == "__main__":
     main()
