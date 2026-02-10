@@ -37,14 +37,14 @@ struct SWConfig {
  * @param config    Scoring configuration (match, mismatch, gap)
  * @return          The maximum alignment score found
  */
-int sw_cuda_tiled(const std::string& seq1, const std::string& seq2,
+std::pair<int, size_t> sw_cuda_tiled(const std::string& seq1, const std::string& seq2,
                 SWConfig config);
 
 /**
  * Computes Smith-Waterman using the Diagonal Wavefront approach.
  * This is the "Basic Version" (non-tiled).
  */
-int sw_cuda_diagonal(const std::string& seq1, const std::string& seq2,
+std::pair<int, size_t>  sw_cuda_diagonal(const std::string& seq1, const std::string& seq2,
                 SWConfig config);
 
 // 3. CPU Version (Baseline)

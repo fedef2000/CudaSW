@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include <stdio.h>
+#include <utility> // Required for std::pair
 
 #define BLOCK_SIZE 256
 
@@ -105,15 +106,25 @@ __global__ void compute_diagonal_kernel(score_t* d_cur, score_t* d_prev, score_t
 }
 
 // --- LIBRARY HOST FUNCTION ---
-int sw_cuda_diagonal(const std::string& seq1, const std::string& seq2,
-                SWConfig config) {
+// Returns: <Max Score, Peak Memory Usage in Bytes>
+std::pair<int, size_t> sw_cuda_diagonal(const std::string& seq1, const std::string& seq2,
+                                        SWConfig config) {
 
     int len1 = seq1.length();
     int len2 = seq2.length();
+    
+    // Track total allocated bytes
+    size_t total_gpu_bytes = 0;
+
     // 1. Allocation
     char *d_seq1, *d_seq2;
-    cudaCheck(cudaMalloc((void **)&d_seq1, len1 * sizeof(char)));
-    cudaCheck(cudaMalloc((void **)&d_seq2, len2 * sizeof(char)));
+    size_t seq1_size = len1 * sizeof(char);
+    size_t seq2_size = len2 * sizeof(char);
+
+    cudaCheck(cudaMalloc((void **)&d_seq1, seq1_size));
+    cudaCheck(cudaMalloc((void **)&d_seq2, seq2_size));
+    total_gpu_bytes += (seq1_size + seq2_size);
+
     cudaCheck(cudaMemcpy(d_seq1, seq1.c_str(), len1, cudaMemcpyHostToDevice));
     cudaCheck(cudaMemcpy(d_seq2, seq2.c_str(), len2, cudaMemcpyHostToDevice));
 
@@ -125,6 +136,7 @@ int sw_cuda_diagonal(const std::string& seq1, const std::string& seq2,
     cudaCheck(cudaMalloc((void **)&d_current, diag_bytes));
     cudaCheck(cudaMalloc((void **)&d_prev, diag_bytes));
     cudaCheck(cudaMalloc((void **)&d_prev2, diag_bytes));
+    total_gpu_bytes += (diag_bytes * 3);
     
     cudaCheck(cudaMemset(d_current, 0, diag_bytes));
     cudaCheck(cudaMemset(d_prev, 0, diag_bytes));
@@ -132,6 +144,7 @@ int sw_cuda_diagonal(const std::string& seq1, const std::string& seq2,
 
     int* d_max_score;
     cudaCheck(cudaMalloc((void**)&d_max_score, sizeof(int)));
+    total_gpu_bytes += sizeof(int);
     cudaCheck(cudaMemset(d_max_score, 0, sizeof(int)));
 
     const int total_diagonals = len1 + len2 - 1;
@@ -174,5 +187,5 @@ int sw_cuda_diagonal(const std::string& seq1, const std::string& seq2,
     cudaFree(d_current); cudaFree(d_prev); cudaFree(d_prev2);
     cudaFree(d_max_score);
 
-    return h_max_score;
+    return std::make_pair(h_max_score, total_gpu_bytes);
 }

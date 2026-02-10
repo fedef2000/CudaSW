@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include <stdio.h>
+#include <utility> // Required for std::pair
 
 // --- KERNEL ---
 /*
@@ -111,39 +112,50 @@ __global__ void compute_tile_kernel(const char* __restrict__ seq1, const char* _
 
 
 // --- LIBRARY HOST FUNCTION ---
-int sw_cuda_tiled(const std::string& seq1, const std::string& seq2,
+// Returns: <Max Score, Peak Memory Usage in Bytes>
+std::pair<int, size_t> sw_cuda_tiled(const std::string& seq1, const std::string& seq2,
                 SWConfig config){
     int len1 = seq1.length();
     int len2 = seq2.length();
 
+    // Track total allocated bytes
+    size_t total_gpu_bytes = 0;
+
     // 1. Device Allocation
     char *d_seq1, *d_seq2;
-    cudaCheck(cudaMalloc((void **)&d_seq1, len1 * sizeof(char)));
-    cudaCheck(cudaMalloc((void **)&d_seq2, len2 * sizeof(char)));
+    size_t seq1_size = len1 * sizeof(char);
+    size_t seq2_size = len2 * sizeof(char);
+    
+    cudaCheck(cudaMalloc((void **)&d_seq1, seq1_size));
+    cudaCheck(cudaMalloc((void **)&d_seq2, seq2_size));
+    total_gpu_bytes += (seq1_size + seq2_size);
     
     cudaCheck(cudaMemcpy(d_seq1, seq1.c_str(), len1, cudaMemcpyHostToDevice));
     cudaCheck(cudaMemcpy(d_seq2, seq2.c_str(), len2, cudaMemcpyHostToDevice));
 
-    score_t *d_horiz, *d_vert, *d_corner;
     int grid_cols = (len2 + TILE_DIM - 1) / TILE_DIM;
     int grid_rows = (len1 + TILE_DIM - 1) / TILE_DIM;
 
+    score_t *d_horiz, *d_vert, *d_corner;
+    // Calculate buffer sizes
     size_t sz_horiz = (len2 + 1) * sizeof(score_t); // the sum of all horizontal halos'lengths is the matrix width 
     size_t sz_vert  = (len1 + 1) * sizeof(score_t); // the sum of all vertical halos'lengths is the matrix hight
-    size_t sz_diag  = (grid_cols + 1) * sizeof(score_t); // each tile store one corner and pass it to the tile below
+    size_t sz_corner  = (grid_cols + 1) * sizeof(score_t); // each tile store one corner and pass it to the tile below
 
     cudaCheck(cudaMalloc((void **)&d_horiz, sz_horiz));
     cudaCheck(cudaMalloc((void **)&d_vert, sz_vert));
-    cudaCheck(cudaMalloc((void **)&d_corner, sz_diag));
+    cudaCheck(cudaMalloc((void **)&d_corner, sz_corner));
+    total_gpu_bytes += (sz_horiz + sz_vert + sz_corner);
 
     cudaCheck(cudaMemset(d_horiz, 0, sz_horiz));
     cudaCheck(cudaMemset(d_vert, 0, sz_vert));
-    cudaCheck(cudaMemset(d_corner, 0, sz_diag));
+    cudaCheck(cudaMemset(d_corner, 0, sz_corner));
 
     int* d_max_score;
     cudaCheck(cudaMalloc((void**)&d_max_score, sizeof(int)));
+    total_gpu_bytes += sizeof(int);
     cudaCheck(cudaMemset(d_max_score, 0, sizeof(int)));
-
+    
     // 2. Wavefront Loop
     int total_diags = grid_rows + grid_cols - 1;
 
@@ -173,5 +185,5 @@ int sw_cuda_tiled(const std::string& seq1, const std::string& seq2,
     cudaFree(d_horiz); cudaFree(d_vert); cudaFree(d_corner);
     cudaFree(d_max_score);
 
-    return h_max_score;
+    return std::make_pair(h_max_score, total_gpu_bytes);
 }

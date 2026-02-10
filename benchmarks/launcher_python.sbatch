@@ -4,7 +4,7 @@
 #SBATCH --time=00:010:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --output=./out-benchmarks-a40.log
+#SBATCH --output=./out-benchmarks-new.log
 #SBATCH --mem-per-cpu=4G
 #SBATCH --gres=gpu:1
 
@@ -21,6 +21,6 @@ source ../venv/bin/activate
 
 # --- 3. RUN PYTHON ---
 echo "Starting Python Benchmark..."
-python python_benchmark.py
+python new.py
 
 echo "Job Finished."
