@@ -21,17 +21,6 @@ source ../venv/bin/activate
 # --force-overwrite: Overwrite old reports
 echo "Starting Profiling..."
 
-nsys profile \
-    -o report_diagonal \
-    --trace=cuda,osrt,nvtx \
-    --force-overwrite true \
-    python profile_diagonal.py
-
-nsys profile \
-    -o report_tiled \
-    --trace=cuda,osrt,nvtx \
-    --force-overwrite true \
-    python profile_tiled.py
 
 nsys profile \
     -o report_streams \

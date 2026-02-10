@@ -2,7 +2,6 @@ import os
 import glob
 import time
 import sw_cuda_py
-import nvtx
 
 # --- Configuration ---
 DATA_DIR = "../benchmarks/data"
