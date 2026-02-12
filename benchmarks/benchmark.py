@@ -148,7 +148,7 @@ def run_test_and_record(label, method_key, func, queries, targets, config, stats
             }
             
             mem_str = f", Mem: {mem_kb:.2f} KB" if mem_kb > 0 else ""
-            print(f"  [{q_name} vs {t_name}] Score: {score}, Time: {duration:.5f}s, Perf: {gcups:.4f} GCUPS{mem_str}")
+            #print(f"  [{q_name} vs {t_name}] Score: {score}, Time: {duration:.5f}s, Perf: {gcups:.4f} GCUPS{mem_str}")
 
             results_scores[pair_key] = score
 
@@ -261,6 +261,59 @@ def main():
     # 4. GPU: Tiled (Returns tuple: int, size_t)
     if hasattr(sw_cuda_py, 'sw_cuda_tiled'):
         run_test_and_record("CUDA Tiled", "Tiled", sw_cuda_py.sw_cuda_tiled, queries, targets, config, stats_db, check_ref=cpu_results)
+
+
+    # 5. GPU: Batch (Streams)
+    print(f"\n--- Testing: CUDA Batch (O2M) ---")
+    if len(queries) > 0 and len(targets) > 0:
+        
+        # Prepare target list (shared across all queries)
+        t_list = [t[1] for t in targets]
+        
+        # Warmup with the first query
+        try:
+            sw_cuda_py.sw_cuda_o2m(queries[0][1], t_list, config)
+        except Exception as e:
+            print(f"  [Warmup Failed] {e}")
+
+        total_batch_time = 0.0
+        total_batch_cells = 0
+
+        # Iterate over ALL queries
+        for q_name, q_seq in queries:
+            
+            # Calculate total matrix cells for this specific 1-to-many batch
+            current_batch_cells = len(q_seq) * sum(len(t) for t in t_list)
+
+            start = time.perf_counter()
+            # Run the O2M kernel for the current query against all targets
+            batch_scores = sw_cuda_py.sw_cuda_o2m(q_seq, t_list, config)
+            end = time.perf_counter()
+            
+            duration = end - start
+            gcups = calculate_gcups(current_batch_cells, duration)
+            
+            #print(f"  [Batch: {q_name} vs {len(t_list)} targets] Time: {duration:.5f}s, Perf: {gcups:.4f} GCUPS")
+            
+            total_batch_time += duration
+            total_batch_cells += current_batch_cells
+
+            # Optional: Check accuracy if we have CPU reference results
+            if cpu_results and batch_scores:
+                for idx, t_tuple in enumerate(targets):
+                    t_name = t_tuple[0]
+                    ref_score = cpu_results.get((q_name, t_name))
+                    
+                    # Assuming sw_cuda_o2m returns a list of scores corresponding to t_list order
+                    if ref_score is not None and idx < len(batch_scores):
+                        if int(batch_scores[idx]) != int(ref_score):
+                             print(f"    >>> [ERROR] Mismatch! {q_name} vs {t_name}. Expected {ref_score}, Got {batch_scores[idx]}")
+
+        # Summary for the batch phase
+        avg_gcups = calculate_gcups(total_batch_cells, total_batch_time)
+        print(f"  --- CUDA Batch (O2M) Summary ---")
+        print(f"  Total Time: {total_batch_time:.4f}s")
+        print(f"  Average Performance: {avg_gcups:.4f} GCUPS")
 
     # Print Table
     print_summary_table(stats_db)

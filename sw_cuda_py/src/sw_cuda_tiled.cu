@@ -6,15 +6,9 @@
 #include <utility> // Required for std::pair
 
 // --- KERNEL ---
-/*
-    The halos are exchanged in the d_horiz, d_vert and d_corner buffers
-    Horizontal and vertical halos are completely overwritten every time kernel is launched and they will be used in the next kernel
-    The d_corner buffer is used by each tile to read the top-left corner cell, that was the bottom-left corner of the tile above. Note that tile above is in 
-    the diagonal before and so in the kernel before.
-*/
 __global__ void compute_tile_kernel(const char* __restrict__ seq1, const char* __restrict__ seq2,
                                     score_t* d_horiz, score_t* d_vert, score_t* d_corner,
-                                    int m, int n, int tile_step, int min_bx, //tile step is the index of the diagonal k
+                                    int m, int n, int tile_step, int min_bx,
                                     int match, int mismatch, int gap,
                                     int* d_max_score) {
     
@@ -66,7 +60,7 @@ __global__ void compute_tile_kernel(const char* __restrict__ seq1, const char* _
 
     // Compute Wavefront inside Tile
     int local_max = 0;
-    for (int k = 0; k < 2 * TILE_DIM - 1; ++k) { // number of diagonal is 2 * TILE_DIM - 1
+    for (int k = 0; k < 2 * TILE_DIM - 1; ++k) {
         int i = tx + 1; // local row
         int j = (k + 2) - i; // local column
         
@@ -105,14 +99,13 @@ __global__ void compute_tile_kernel(const char* __restrict__ seq1, const char* _
         local_max = max(local_max, __shfl_down_sync(0xffffffff, local_max, offset));
     }
 
-    if (tx == 0) atomicMax(&s_block_max, local_max); // if Tile'size is 32 this line is useless since each block is 32 thread that is exactly one warp
+    if (tx == 0) atomicMax(&s_block_max, local_max); 
     __syncthreads();
     if (tx == 0 && s_block_max > 0) atomicMax(d_max_score, s_block_max);
 }
 
 
 // --- LIBRARY HOST FUNCTION ---
-// Returns: <Max Score, Peak Memory Usage in Bytes>
 std::pair<int, size_t> sw_cuda_tiled(const std::string& seq1, const std::string& seq2,
                 SWConfig config){
     int len1 = seq1.length();

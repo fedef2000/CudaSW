@@ -47,7 +47,7 @@ std::vector<int> sw_cuda_o2m(const std::string& query,
 
     // Resources
     char* d_target[N_STREAMS];
-    char* h_target_pinned[N_STREAMS]; // NEW: Pinned Staging Buffers
+    char* h_target_pinned[N_STREAMS]; 
     
     score_t *d_horiz[N_STREAMS], *d_vert[N_STREAMS], *d_diag[N_STREAMS];
     int* d_max_score[N_STREAMS];
@@ -93,11 +93,9 @@ std::vector<int> sw_cuda_o2m(const std::string& query,
         int target_len = targets[i].length();
 
         // 1. CPU Copy to Pinned Memory (Fast, no Driver sync)
-        // Since we synced above, this is safe to overwrite.
         memcpy(h_target_pinned[s], targets[i].c_str(), target_len);
 
         // 2. Async DMA Copy to GPU
-        // The driver sees the source is Pinned, so it proceeds asynchronously.
         cudaCheck(cudaMemcpyAsync(d_target[s], h_target_pinned[s], target_len, cudaMemcpyHostToDevice, streams[s]));
 
         // Reset buffers

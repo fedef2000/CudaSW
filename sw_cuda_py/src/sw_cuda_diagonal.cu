@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include <stdio.h>
-#include <utility> // Required for std::pair
+#include <utility> 
 
 #define BLOCK_SIZE 256
 
@@ -106,7 +106,6 @@ __global__ void compute_diagonal_kernel(score_t* d_cur, score_t* d_prev, score_t
 }
 
 // --- LIBRARY HOST FUNCTION ---
-// Returns: <Max Score, Peak Memory Usage in Bytes>
 std::pair<int, size_t> sw_cuda_diagonal(const std::string& seq1, const std::string& seq2,
                                         SWConfig config) {
 
@@ -128,7 +127,7 @@ std::pair<int, size_t> sw_cuda_diagonal(const std::string& seq1, const std::stri
     cudaCheck(cudaMemcpy(d_seq1, seq1.c_str(), len1, cudaMemcpyHostToDevice));
     cudaCheck(cudaMemcpy(d_seq2, seq2.c_str(), len2, cudaMemcpyHostToDevice));
 
-    // Diagonal buffers: In this approach, we swap 3 full diagonal arrays
+    // Diagonal buffers: 3 full diagonal arrays
     score_t *d_current, *d_prev, *d_prev2;
     size_t diag_len = std::min(len1, len2);
     size_t diag_bytes = diag_len * sizeof(score_t); 
